@@ -86,11 +86,33 @@ func (q *Queue) tryEnqueue(request LogRequest, logger *zap.Logger) error {
 	case q.channel <- request:
 		return nil
 	default:
-		q.droppedCounter.Add(1)
-		logger.Warn(q.logDescription+" queue full, dropping logs",
-			zap.String("log_type", q.logDescription),
-			zap.Uint64("total_dropped", q.droppedCounter.Load()))
-		return errors.New("queue full")
+		// Channel is full, drop the oldest log
+		select {
+		case toDrop := <-q.channel:
+			q.droppedCounter.Add(1)
+			logger.Warn(q.logDescription+" queue full, dropping oldest log",
+				zap.String("log_type", q.logDescription),
+				zap.Uint64("total_dropped", q.droppedCounter.Load()))
+
+			select {
+			case toDrop.ResponseCh <- errors.New("queue full"):
+			default:
+			}
+			close(toDrop.ResponseCh)
+		default:
+			// Should not happen, but just in case
+		}
+		// Now there is space, enqueue the new request
+		select {
+		case q.channel <- request:
+			return nil
+		default:
+			q.droppedCounter.Add(1)
+			logger.Warn(q.logDescription+" queue full, dropping newest log",
+				zap.String("log_type", q.logDescription),
+				zap.Uint64("total_dropped", q.droppedCounter.Load()))
+			return errors.New("queue full")
+		}
 	}
 }
 
@@ -333,7 +355,11 @@ func (l *LogAnalyzer) recordLogs(logType LogType, logs any) <-chan error {
 
 	queue := l.logsQueues[logType]
 	if err := queue.tryEnqueue(request, l.logger); err != nil {
-		errCh <- err
+		select {
+		case errCh <- err:
+		default:
+		}
+		close(errCh)
 	}
 
 	return errCh
