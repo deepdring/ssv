@@ -727,49 +727,40 @@ func (ec *ExecutionClient) StreamFinalizedLogs(ctx context.Context, fromBlock ui
 				// Fetch logs for the newly finalized block
 				ec.logger.Debug("fetching logs for finalized block", zap.Uint64("block", finalizedBlockNum))
 
-				query := ethereum.FilterQuery{
-					Addresses: []ethcommon.Address{ec.contractAddress},
-					FromBlock: new(big.Int).SetUint64(finalizedBlockNum),
-					ToBlock:   new(big.Int).SetUint64(finalizedBlockNum),
+				// Compute start of range to fetch logs from
+				queryFrom := fromBlock + 1
+				if lastFinalizedBlock > 0 {
+					queryFrom = lastFinalizedBlock + 1
+				}
+				if queryFrom > finalizedBlockNum {
+					queryFrom = finalizedBlockNum
 				}
 
-				logs, err := ec.client.FilterLogs(ctx, query)
-				if err != nil {
-					ec.logger.Error("failed to fetch finalized logs",
-						zap.Uint64("block", finalizedBlockNum),
-						zap.Error(err))
-					continue
-				}
-
-				// Filter out removed logs (indicates blockchain reorganization)
-				validLogs := make([]ethtypes.Log, 0, len(logs))
-				for _, log := range logs {
-					if log.Removed {
-						ec.logger.Warn("finalized log is removed (reorg detected)",
-							zap.String("block_hash", log.BlockHash.Hex()),
-							fields.TxHash(log.TxHash),
-							zap.Uint("log_index", log.Index))
-						continue
+				logStream, errCh := ec.fetchLogsInBatches(ctx, queryFrom, finalizedBlockNum)
+				streaming := true
+				for streaming {
+					select {
+					case blockLogs, ok := <-logStream:
+						if !ok {
+							streaming = false
+							continue
+						}
+						// Only emit logs for the finalized block (or range)
+						if blockLogs.BlockNumber > 0 {
+							logCh <- blockLogs
+						}
+					case err, ok := <-errCh:
+						if ok && err != nil {
+							ec.logger.Error("failed to fetch finalized logs",
+								zap.Uint64("block", finalizedBlockNum),
+								zap.Error(err))
+						}
+						streaming = false
 					}
-					validLogs = append(validLogs, log)
 				}
-
-				blockLogs := BlockLogs{
-					BlockNumber: finalizedBlockNum,
-					Logs:        validLogs,
-				}
-
-				select {
-				case logCh <- blockLogs:
-					lastFinalizedBlock = finalizedBlockNum
-					ec.logger.Debug("emitted finalized logs",
-						zap.Uint64("block", finalizedBlockNum),
-						zap.Int("log_count", len(logs)))
-				case <-ctx.Done():
-					return
-				case <-ec.closed:
-					return
-				}
+				lastFinalizedBlock = finalizedBlockNum
+				ec.logger.Debug("emitted finalized logs",
+					zap.Uint64("block", finalizedBlockNum))
 			}
 		}
 	}()
