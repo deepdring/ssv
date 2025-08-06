@@ -495,7 +495,7 @@ type mockTraceStore struct {
 	validatorDecideds           map[string][]qbftstorage.ParticipantsRangeEntry
 	committeeDecideds           map[string][]qbftstorage.ParticipantsRangeEntry
 	GetValidatorDutyFunc        func(role spectypes.BeaconRole, slot phase0.Slot, pubkey spectypes.ValidatorPK) (*dutytracer.ValidatorDutyTrace, error)
-	GetAllValidatorDutiesFunc   func(role spectypes.BeaconRole, slot phase0.Slot) ([]*dutytracer.ValidatorDutyTrace, error)
+	GetValidatorDutiesFunc      func(role spectypes.BeaconRole, slot phase0.Slot) ([]*dutytracer.ValidatorDutyTrace, error)
 	GetCommitteeDutyFunc        func(slot phase0.Slot, committeeID spectypes.CommitteeID) (*exportertypes.CommitteeDutyTrace, error)
 	GetCommitteeDutiesFunc      func(slot phase0.Slot) ([]*exportertypes.CommitteeDutyTrace, error)
 	GetCommitteeIDFunc          func(slot phase0.Slot, pubkey spectypes.ValidatorPK) (spectypes.CommitteeID, phase0.ValidatorIndex, error)
@@ -519,9 +519,9 @@ func (m *mockTraceStore) GetValidatorDuty(role spectypes.BeaconRole, slot phase0
 	return nil, nil
 }
 
-func (m *mockTraceStore) GetAllValidatorDuties(role spectypes.BeaconRole, slot phase0.Slot) ([]*dutytracer.ValidatorDutyTrace, error) {
-	if m.GetAllValidatorDutiesFunc != nil {
-		return m.GetAllValidatorDutiesFunc(role, slot)
+func (m *mockTraceStore) GetValidatorDuties(role spectypes.BeaconRole, slot phase0.Slot) ([]*dutytracer.ValidatorDutyTrace, error) {
+	if m.GetValidatorDutiesFunc != nil {
+		return m.GetValidatorDutiesFunc(role, slot)
 	}
 	return nil, nil
 }
@@ -1527,7 +1527,7 @@ func TestExporterValidatorTraces(t *testing.T) {
 					return share, true
 				}
 
-				store.GetAllValidatorDutiesFunc = func(role spectypes.BeaconRole, slot phase0.Slot) ([]*dutytracer.ValidatorDutyTrace, error) {
+				store.GetValidatorDutiesFunc = func(role spectypes.BeaconRole, slot phase0.Slot) ([]*dutytracer.ValidatorDutyTrace, error) {
 					results := []*dutytracer.ValidatorDutyTrace{
 						{
 							ValidatorDutyTrace: exportertypes.ValidatorDutyTrace{
