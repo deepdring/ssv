@@ -849,12 +849,6 @@ func (c *Collector) checkAndPublishQuorum(logger *zap.Logger, msg *spectypes.Par
 		var validatorPK spectypes.ValidatorPK
 		copy(validatorPK[:], validator.ValidatorPubKey[:])
 
-		logger.Debug("processing validator for quorum check",
-			zap.Uint64("validator_index", uint64(partialMsg.ValidatorIndex)),
-			zap.String("validator_pk", fmt.Sprintf("%x", validatorPK[:])),
-			zap.Uint64("signer", partialMsg.Signer),
-			zap.Uint64("threshold", threshold))
-
 		// Initialize tracking for this validator if needed
 		if trace.publishedQuorums[partialMsg.ValidatorIndex] == nil {
 			trace.publishedQuorums[partialMsg.ValidatorIndex] = make(map[spectypes.BeaconRole]string)
