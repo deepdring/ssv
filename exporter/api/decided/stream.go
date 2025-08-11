@@ -58,7 +58,7 @@ func NewDecidedListener(logger *zap.Logger, domainType spectypes.DomainType, ws 
 			// already sent in the last minute, skipping to avoid flooding ws stream
 			return
 		}
-		logger.Info("sending to websocket feed",
+		logger.Debug("sending to websocket feed",
 			zap.String("validator_pk", fmt.Sprintf("%x", msg.PubKey[:])),
 			zap.String("signers", fmt.Sprintf("%v", msg.Signers)),
 			zap.Uint64("slot", uint64(msg.Slot)),
