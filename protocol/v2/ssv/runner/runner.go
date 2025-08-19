@@ -335,7 +335,10 @@ func (b *BaseRunner) decide(ctx context.Context, logger *zap.Logger, runner Runn
 		return traces.Errorf(span, "input data invalid: %w", err)
 	}
 
-	span.AddEvent("start new instance")
+	const startingNewQBFTInstanceEvent = "starting new QBFT instance"
+	logger.Debug(startingNewQBFTInstanceEvent)
+	span.AddEvent(startingNewQBFTInstanceEvent)
+
 	if err := runner.GetBaseRunner().QBFTController.StartNewInstance(
 		ctx,
 		logger,

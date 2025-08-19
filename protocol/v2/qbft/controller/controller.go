@@ -82,7 +82,10 @@ func (c *Controller) StartNewInstance(ctx context.Context, logger *zap.Logger, h
 
 	newInstance := c.addAndStoreNewInstance()
 
-	span.AddEvent("start new instance")
+	const startingNewQBFTInstanceEvent = "starting new QBFT instance"
+	logger.Debug(startingNewQBFTInstanceEvent)
+	span.AddEvent(startingNewQBFTInstanceEvent)
+
 	newInstance.Start(ctx, logger, value, height)
 	c.forceStopAllInstanceExceptCurrent()
 
