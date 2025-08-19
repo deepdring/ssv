@@ -235,6 +235,8 @@ func (b *BaseRunner) baseConsensusMsgProcessing(ctx context.Context, logger *zap
 		return true, nil, errors.Wrap(err, "could not encode decided value")
 	}
 
+	logger.Debug("QBFT instance is decided")
+
 	// update the highest decided slot
 	b.highestDecidedSlot = b.State.StartingDuty.DutySlot()
 

@@ -125,9 +125,9 @@ func (r *AggregatorRunner) ProcessPreConsensus(ctx context.Context, logger *zap.
 		observability.ValidatorIndexAttribute(duty.ValidatorIndex),
 	)
 
-	const eventMsg = "🧩 got partial signature quorum"
-	span.AddEvent(eventMsg, trace.WithAttributes(observability.ValidatorSignerAttribute(signedMsg.Messages[0].Signer)))
-	logger.Debug(eventMsg,
+	const gotPartialSignaturesEvent = "🧩 got partial aggregator selection proof signatures"
+	span.AddEvent(gotPartialSignaturesEvent, trace.WithAttributes(observability.ValidatorSignerAttribute(signedMsg.Messages[0].Signer)))
+	logger.Debug(gotPartialSignaturesEvent,
 		zap.Any("signer", signedMsg.Messages[0].Signer), // TODO: always 1?
 		fields.Slot(duty.Slot),
 	)
@@ -142,7 +142,12 @@ func (r *AggregatorRunner) ProcessPreConsensus(ctx context.Context, logger *zap.
 	if err != nil {
 		return traces.Errorf(span, "failed to submit aggregate and proof: %w", err)
 	}
+
 	r.measurements.ContinueDutyFlow()
+
+	const submittedAggregateAndProofEvent = "submitted aggregate and proof"
+	logger.Debug(submittedAggregateAndProofEvent)
+	span.AddEvent(submittedAggregateAndProofEvent)
 
 	byts, err := res.MarshalSSZ()
 	if err != nil {
@@ -172,7 +177,7 @@ func (r *AggregatorRunner) ProcessConsensus(ctx context.Context, logger *zap.Log
 		))
 	defer span.End()
 
-	span.AddEvent("checking if instance is decided")
+	span.AddEvent("checking if QBFT instance is decided")
 	decided, encDecidedValue, err := r.BaseRunner.baseConsensusMsgProcessing(ctx, logger, r, signedMsg, &spectypes.ValidatorConsensusData{})
 	if err != nil {
 		return traces.Errorf(span, "failed processing consensus message: %w", err)
@@ -185,7 +190,7 @@ func (r *AggregatorRunner) ProcessConsensus(ctx context.Context, logger *zap.Log
 		return nil
 	}
 
-	span.AddEvent("instance is decided")
+	span.AddEvent("QBFT instance is decided")
 	r.measurements.EndConsensus()
 	recordConsensusDuration(ctx, r.measurements.ConsensusTime(), spectypes.RoleAggregator)
 
@@ -252,6 +257,10 @@ func (r *AggregatorRunner) ProcessConsensus(ctx context.Context, logger *zap.Log
 		return traces.Errorf(span, "can't broadcast partial post consensus sig: %w", err)
 	}
 
+	const broadcastedPostEvent = "broadcasted post consensus partial signature message"
+	logger.Debug(broadcastedPostEvent)
+	span.AddEvent(broadcastedPostEvent)
+
 	span.SetStatus(codes.Ok, "")
 	return nil
 }
@@ -280,6 +289,10 @@ func (r *AggregatorRunner) ProcessPostConsensus(ctx context.Context, logger *zap
 		span.SetStatus(codes.Ok, "")
 		return nil
 	}
+
+	const gotPostConsensusQuorumEvent = "got post consensus quorum"
+	logger.Debug(gotPostConsensusQuorumEvent)
+	span.AddEvent(gotPostConsensusQuorumEvent)
 
 	r.measurements.EndPostConsensus()
 	recordPostConsensusDuration(ctx, r.measurements.PostConsensusTime(), spectypes.RoleAggregator)
@@ -312,6 +325,10 @@ func (r *AggregatorRunner) ProcessPostConsensus(ctx context.Context, logger *zap
 		return traces.Errorf(span, "could not construct versioned aggregate and proof: %w", err)
 	}
 
+	const submittingSignedAggregateProofEvent = "submitting signed aggregate and proof"
+	logger.Debug(submittingSignedAggregateProofEvent)
+	span.AddEvent(submittingSignedAggregateProofEvent)
+
 	start := time.Now()
 	if err := r.GetBeaconNode().SubmitSignedAggregateSelectionProof(ctx, msg); err != nil {
 		recordFailedSubmission(ctx, spectypes.BNRoleAggregator)
@@ -319,10 +336,10 @@ func (r *AggregatorRunner) ProcessPostConsensus(ctx context.Context, logger *zap
 		logger.Error(errMsg, fields.SubmissionTime(time.Since(start)), zap.Error(err))
 		return traces.Errorf(span, "%s: %w", errMsg, err)
 	}
-	const eventMsg = "✅ successful submitted aggregate"
-	span.AddEvent(eventMsg)
+	const submittedSignedAggregateProofEvent = "✅ successfully submitted signed aggregate and proof"
+	span.AddEvent(submittedSignedAggregateProofEvent)
 	logger.Debug(
-		eventMsg,
+		submittedSignedAggregateProofEvent,
 		fields.SubmissionTime(time.Since(start)),
 		fields.TotalConsensusTime(r.measurements.TotalConsensusTime()),
 		fields.TotalDutyTime(r.measurements.TotalDutyTime()),
@@ -338,6 +355,10 @@ func (r *AggregatorRunner) ProcessPostConsensus(ctx context.Context, logger *zap
 		r.BaseRunner.NetworkConfig.EstimatedEpochAtSlot(r.GetState().StartingDuty.DutySlot()),
 		spectypes.BNRoleAggregator,
 	)
+
+	const dutyFinishedEvent = "successfully finished duty processing"
+	logger.Info(dutyFinishedEvent)
+	span.AddEvent(dutyFinishedEvent)
 
 	span.SetStatus(codes.Ok, "")
 	return nil
@@ -390,8 +411,13 @@ func (r *AggregatorRunner) executeDuty(ctx context.Context, logger *zap.Logger, 
 		spectypes.DomainSelectionProof,
 	)
 	if err != nil {
-		return traces.Errorf(span, "could not sign randao: %w", err)
+		return traces.Errorf(span, "could not sign aggregator selection proof: %w", err)
 	}
+
+	const signedSelectionProofEvent = "signed aggregator selection proof"
+	logger.Debug(signedSelectionProofEvent)
+	span.AddEvent(signedSelectionProofEvent)
+
 	msgs := &spectypes.PartialSignatureMessages{
 		Type:     spectypes.SelectionProofPartialSig,
 		Slot:     duty.DutySlot(),

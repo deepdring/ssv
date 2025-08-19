@@ -225,7 +225,7 @@ func (r *ProposerRunner) ProcessConsensus(ctx context.Context, logger *zap.Logge
 		))
 	defer span.End()
 
-	span.AddEvent("checking if instance is decided")
+	span.AddEvent("checking if QBFT instance is decided")
 	decided, decidedValue, err := r.BaseRunner.baseConsensusMsgProcessing(ctx, logger, r, signedMsg, &spectypes.ValidatorConsensusData{})
 	if err != nil {
 		return traces.Errorf(span, "failed processing consensus message: %w", err)
@@ -238,7 +238,7 @@ func (r *ProposerRunner) ProcessConsensus(ctx context.Context, logger *zap.Logge
 		return nil
 	}
 
-	span.AddEvent("instance is decided")
+	span.AddEvent("QBFT instance is decided")
 	r.measurements.EndConsensus()
 	recordConsensusDuration(ctx, r.measurements.ConsensusTime(), spectypes.RoleProposer)
 
@@ -314,6 +314,10 @@ func (r *ProposerRunner) ProcessConsensus(ctx context.Context, logger *zap.Logge
 		return fmt.Errorf("can't broadcast partial post consensus sig: %w", err)
 	}
 
+	const broadcastedPostEvent = "broadcasted post consensus partial signature message"
+	logger.Debug(broadcastedPostEvent)
+	span.AddEvent(broadcastedPostEvent)
+
 	span.SetStatus(codes.Ok, "")
 	return nil
 }
@@ -337,6 +341,10 @@ func (r *ProposerRunner) ProcessPostConsensus(ctx context.Context, logger *zap.L
 		return nil
 	}
 
+	const gotPostConsensusQuorumEvent = "got post consensus quorum"
+	logger.Debug(gotPostConsensusQuorumEvent)
+	span.AddEvent(gotPostConsensusQuorumEvent)
+
 	// only 1 root, verified by expectedPostConsensusRootsAndDomain
 	root := roots[0]
 
@@ -354,9 +362,7 @@ func (r *ProposerRunner) ProcessPostConsensus(ctx context.Context, logger *zap.L
 	recordPostConsensusDuration(ctx, r.measurements.PostConsensusTime(), spectypes.RoleProposer)
 
 	logger.Debug("🧩 reconstructed partial post consensus signatures proposer",
-		zap.Uint64s("signers", getPostConsensusProposerSigners(r.GetState(), root)),
-		fields.PostConsensusTime(r.measurements.PostConsensusTime()),
-		fields.Round(r.GetState().RunningInstance.State.Round))
+		zap.Uint64s("signers", getPostConsensusProposerSigners(r.GetState(), root)))
 
 	r.doppelgangerHandler.ReportQuorum(r.GetShare().ValidatorIndex)
 
@@ -372,10 +378,13 @@ func (r *ProposerRunner) ProcessPostConsensus(ctx context.Context, logger *zap.L
 		fields.PreConsensusTime(r.measurements.PreConsensusTime()),
 		fields.ConsensusTime(r.measurements.ConsensusTime()),
 		fields.PostConsensusTime(r.measurements.PostConsensusTime()),
-		fields.Height(r.BaseRunner.QBFTController.Height),
-		fields.Round(r.GetState().RunningInstance.State.Round),
-		zap.Bool("blinded", r.decidedBlindedBlock()),
+		zap.Bool("decided_block_is_blinded", r.decidedBlindedBlock()),
 	)
+
+	const submittingBlockProposalMsg = "submitting block proposal"
+	span.AddEvent(submittingBlockProposalMsg)
+	logger.Info(submittingBlockProposalMsg)
+
 	var (
 		bSummary     blockSummary
 		summarizeErr error
@@ -421,21 +430,16 @@ func (r *ProposerRunner) ProcessPostConsensus(ctx context.Context, logger *zap.L
 		}
 	}
 
-	const eventMsg = "✅ successfully submitted block proposal"
-	span.AddEvent(eventMsg, trace.WithAttributes(
-		observability.BeaconSlotAttribute(r.BaseRunner.State.StartingDuty.DutySlot()),
-		observability.DutyRoundAttribute(r.BaseRunner.State.RunningInstance.State.Round),
+	const submittedBlockProposalMsg = "✅ successfully submitted block proposal"
+	span.AddEvent(submittedBlockProposalMsg, trace.WithAttributes(
 		observability.BeaconBlockHashAttribute(bSummary.Hash),
 		observability.BeaconBlockIsBlindedAttribute(bSummary.Blinded),
 	))
-	logger.Info(eventMsg,
-		fields.Slot(validatorConsensusData.Duty.Slot),
-		fields.Height(r.BaseRunner.QBFTController.Height),
-		fields.Round(r.GetState().RunningInstance.State.Round),
+	logger.Info(submittedBlockProposalMsg,
 		zap.String("block_hash", bSummary.Hash.String()),
 		zap.Bool("blinded", bSummary.Blinded),
-		fields.Took(time.Since(start)),
 		zap.NamedError("summarize_err", summarizeErr),
+		fields.Took(time.Since(start)),
 		fields.TotalConsensusTime(r.measurements.TotalConsensusTime()),
 		fields.TotalDutyTime(r.measurements.TotalDutyTime()),
 	)
@@ -450,6 +454,10 @@ func (r *ProposerRunner) ProcessPostConsensus(ctx context.Context, logger *zap.L
 		r.BaseRunner.NetworkConfig.EstimatedEpochAtSlot(r.GetState().StartingDuty.DutySlot()),
 		spectypes.BNRoleProposer,
 	)
+
+	const dutyFinishedEvent = "successfully finished duty processing"
+	logger.Info(dutyFinishedEvent)
+	span.AddEvent(dutyFinishedEvent)
 
 	span.SetStatus(codes.Ok, "")
 	return nil

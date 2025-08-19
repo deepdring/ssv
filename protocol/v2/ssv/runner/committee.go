@@ -234,7 +234,7 @@ func (cr *CommitteeRunner) ProcessConsensus(ctx context.Context, logger *zap.Log
 		))
 	defer span.End()
 
-	span.AddEvent("checking if instance is decided")
+	span.AddEvent("checking if QBFT instance is decided")
 	decided, decidedValue, err := cr.BaseRunner.baseConsensusMsgProcessing(ctx, logger, cr, msg, &spectypes.BeaconVote{})
 	if err != nil {
 		return traces.Errorf(span, "failed processing consensus message: %w", err)
@@ -247,9 +247,7 @@ func (cr *CommitteeRunner) ProcessConsensus(ctx context.Context, logger *zap.Log
 		return nil
 	}
 
-	const qbftInstanceDecidedEvent = "QBFT instance decided"
-	logger.Debug(qbftInstanceDecidedEvent)
-	span.AddEvent(qbftInstanceDecidedEvent)
+	span.AddEvent("QBFT instance is decided")
 	cr.measurements.EndConsensus()
 	recordConsensusDuration(ctx, cr.measurements.ConsensusTime(), spectypes.RoleCommittee)
 
