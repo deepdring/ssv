@@ -402,7 +402,12 @@ func (s *Scheduler) ExecuteDuties(ctx context.Context, duties []*spectypes.Valid
 
 	for _, duty := range duties {
 		duty := duty
+
 		logger := s.loggerWithDutyContext(duty)
+
+		const eventMsg = "🔧 executing validator duty"
+		logger.Debug(eventMsg)
+		span.AddEvent(eventMsg)
 
 		slotDelay := time.Since(s.beaconConfig.SlotStartTime(duty.Slot))
 		if slotDelay >= 100*time.Millisecond {
@@ -436,7 +441,9 @@ func (s *Scheduler) ExecuteCommitteeDuties(ctx context.Context, duties committee
 
 	for _, committee := range duties {
 		duty := committee.duty
+
 		logger := s.loggerWithCommitteeDutyContext(committee) // TODO: extract this in dutyExecutor (validator controller), don't pass logger to ExecuteCommitteeDuty
+
 		dutyEpoch := s.beaconConfig.EstimatedEpochAtSlot(duty.Slot)
 
 		const eventMsg = "🔧 executing committee duty"
